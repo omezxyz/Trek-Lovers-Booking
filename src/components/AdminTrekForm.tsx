@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,22 @@ import { toast } from "sonner";
 import { Trek } from "@/types/trek";
 import { supabase } from "@/integrations/supabase/client";
 import ImageUpload from "@/components/ImageUpload";
+import { GripVertical, Plus, Trash2, MoveUp, MoveDown } from "lucide-react";
+
+/* ----------------------------- Zod schema ----------------------------- */
+
+const itineraryItemSchema = z.object({
+  day: z.number().min(1, "Day must be at least 1"),
+  title: z.string().min(2, "Title must be at least 2 characters"),
+  date: z.string().optional().or(z.literal("")),
+  description: z.string().min(5, "Description must be at least 5 characters"),
+});
 
 const trekSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   duration: z.number().min(1, "Duration must be at least 1 day"),
-  difficulty: z.enum(['Easy', 'Moderate', 'Difficult', 'Extreme']),
+  difficulty: z.enum(["Easy", "Moderate", "Difficult", "Extreme"]),
   price: z.number().min(0, "Price must be positive"),
   max_participants: z.number().min(1, "At least 1 participant required"),
   start_date: z.string(),
@@ -30,6 +40,7 @@ const trekSchema = z.object({
   included: z.string(),
   excluded: z.string(),
   is_active: z.boolean(),
+  itinerary: z.array(itineraryItemSchema).min(1, "Add at least one day to the itinerary"),
 });
 
 type TrekFormData = z.infer<typeof trekSchema>;
@@ -39,6 +50,8 @@ interface AdminTrekFormProps {
   onSubmitSuccess: () => void;
   onCancel: () => void;
 }
+
+/* ------------------------------ Component ----------------------------- */
 
 const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,7 +64,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
       title: trek?.title || "",
       description: trek?.description || "",
       duration: trek?.duration || 1,
-      difficulty: trek?.difficulty || 'Easy',
+      difficulty: trek?.difficulty || "Easy",
       price: trek?.price || 0,
       max_participants: trek?.max_participants || 1,
       start_date: trek?.start_date || "",
@@ -63,8 +76,30 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
       included: trek?.included?.join(", ") || "",
       excluded: trek?.excluded?.join(", ") || "",
       is_active: trek?.is_active ?? true,
+      itinerary: trek?.itinerary && Array.isArray(trek.itinerary) && trek.itinerary.length > 0
+        ? trek.itinerary.map((d: any, idx: number) => ({
+            day: Number(d.day ?? idx + 1),
+            title: String(d.title ?? ""),
+            date: d.date ?? "",
+            description: String(d.description ?? ""),
+          }))
+        : [
+            { day: 1, title: "", date: "", description: "" },
+          ],
     },
   });
+
+  const { control, handleSubmit, setValue, watch } = form;
+  const { fields, append, remove, swap } = useFieldArray({
+    control,
+    name: "itinerary",
+  });
+
+  // Optional: auto-sync day numbers when list changes
+  const syncDayNumbers = () => {
+    const items = watch("itinerary");
+    items.forEach((_, i) => setValue(`itinerary.${i}.day`, i + 1, { shouldDirty: true, shouldValidate: true }));
+  };
 
   const onSubmit = async (data: TrekFormData) => {
     setIsSubmitting(true);
@@ -79,30 +114,26 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
         start_date: data.start_date,
         end_date: data.end_date,
         location: data.location,
-        image_url: mainImage[0] || null,
+        image_url: mainImage[0] || "",
         gallery_images: galleryImages,
-        highlights: data.highlights.split(",").map(h => h.trim()).filter(h => h),
-        included: data.included.split(",").map(i => i.trim()).filter(i => i),
-        excluded: data.excluded.split(",").map(e => e.trim()).filter(e => e),
-        itinerary: {}, // You can extend this for detailed itinerary
+        highlights: data.highlights.split(",").map((h) => h.trim()).filter((h) => h),
+        included: data.included.split(",").map((i) => i.trim()).filter((i) => i),
+        excluded: data.excluded.split(",").map((e) => e.trim()).filter((e) => e),
+        itinerary: data.itinerary.map((d) => ({
+          day: d.day,
+          title: d.title.trim(),
+          date: d.date || null,
+          description: d.description.trim(),
+        })), // array of objects ready for JSON column
         is_active: data.is_active,
       };
 
       if (trek) {
-        // Update existing trek
-        const { error } = await supabase
-          .from("treks")
-          .update(trekData)
-          .eq("id", trek.id);
-
+        const { error } = await supabase.from("treks").update(trekData).eq("id", trek.id);
         if (error) throw error;
         toast.success("Trek updated successfully!");
       } else {
-        // Create new trek
-        const { error } = await supabase
-          .from("treks")
-          .insert(trekData);
-
+        const { error } = await supabase.from("treks").insert(trekData);
         if (error) throw error;
         toast.success("Trek created successfully!");
       }
@@ -123,10 +154,10 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
-                control={form.control}
+                control={control}
                 name="title"
                 render={({ field }) => (
                   <FormItem>
@@ -140,7 +171,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
               />
 
               <FormField
-                control={form.control}
+                control={control}
                 name="location"
                 render={({ field }) => (
                   <FormItem>
@@ -155,7 +186,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
             </div>
 
             <FormField
-              control={form.control}
+              control={control}
               name="description"
               render={({ field }) => (
                 <FormItem>
@@ -170,7 +201,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <FormField
-                control={form.control}
+                control={control}
                 name="duration"
                 render={({ field }) => (
                   <FormItem>
@@ -189,7 +220,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
               />
 
               <FormField
-                control={form.control}
+                control={control}
                 name="difficulty"
                 render={({ field }) => (
                   <FormItem>
@@ -213,7 +244,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
               />
 
               <FormField
-                control={form.control}
+                control={control}
                 name="price"
                 render={({ field }) => (
                   <FormItem>
@@ -233,7 +264,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
               />
 
               <FormField
-                control={form.control}
+                control={control}
                 name="max_participants"
                 render={({ field }) => (
                   <FormItem>
@@ -254,7 +285,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
-                control={form.control}
+                control={control}
                 name="start_date"
                 render={({ field }) => (
                   <FormItem>
@@ -268,7 +299,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
               />
 
               <FormField
-                control={form.control}
+                control={control}
                 name="end_date"
                 render={({ field }) => (
                   <FormItem>
@@ -293,11 +324,11 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
               images={galleryImages}
               onImagesChange={setGalleryImages}
               label="Gallery Images"
-              multiple={true}
+              multiple
             />
 
             <FormField
-              control={form.control}
+              control={control}
               name="highlights"
               render={({ field }) => (
                 <FormItem>
@@ -311,7 +342,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
             />
 
             <FormField
-              control={form.control}
+              control={control}
               name="included"
               render={({ field }) => (
                 <FormItem>
@@ -325,7 +356,7 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
             />
 
             <FormField
-              control={form.control}
+              control={control}
               name="excluded"
               render={({ field }) => (
                 <FormItem>
@@ -338,17 +369,154 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
               )}
             />
 
+            {/* ------------------------- Itinerary section ------------------------- */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <FormLabel className="text-base">Itinerary</FormLabel>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    append({ day: fields.length + 1, title: "", date: "", description: "" });
+                  }}
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Day
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {fields.map((field, index) => (
+                  <div
+                    key={field.id}
+                    className="rounded-lg border p-3 md:p-4 space-y-3 bg-muted/30"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-foreground/70">
+                        <GripVertical className="h-4 w-4" />
+                        Day {index + 1}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {index > 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              swap(index, index - 1);
+                              setTimeout(syncDayNumbers, 0);
+                            }}
+                            title="Move up"
+                          >
+                            <MoveUp className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {index < fields.length - 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              swap(index, index + 1);
+                              setTimeout(syncDayNumbers, 0);
+                            }}
+                            title="Move down"
+                          >
+                            <MoveDown className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            remove(index);
+                            setTimeout(syncDayNumbers, 0);
+                          }}
+                          title="Remove day"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <FormField
+                        control={control}
+                        name={`itinerary.${index}.title`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Title</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Arrival, Acclimatization, Summit push..." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={control}
+                        name={`itinerary.${index}.date`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Date (optional)</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={control}
+                        name={`itinerary.${index}.day`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Day</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={1}
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={control}
+                      name={`itinerary.${index}.description`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Details</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Describe activities, altitude, distance, notes..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <FormField
-              control={form.control}
+              control={control}
               name="is_active"
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between">
                   <FormLabel>Active Trek</FormLabel>
                   <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -356,19 +524,10 @@ const AdminTrekForm = ({ trek, onSubmitSuccess, onCancel }: AdminTrekFormProps) 
             />
 
             <div className="flex gap-4 pt-4">
-              <Button
-                type="submit"
-                className="flex-1"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Saving..." : (trek ? "Update Trek" : "Create Trek")}
+              <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : trek ? "Update Trek" : "Create Trek"}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-                disabled={isSubmitting}
-              >
+              <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
                 Cancel
               </Button>
             </div>

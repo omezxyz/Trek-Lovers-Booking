@@ -233,7 +233,7 @@ const BookingForm = ({ trek, onBookingSuccess }: BookingFormProps) => {
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              After submitting, an admin will review and confirm the booking via email.
+              After submitting, an admin will contact to confirm your booking and on successfull booking you will be notified via email.
             </p>
           </form>
         </Form>

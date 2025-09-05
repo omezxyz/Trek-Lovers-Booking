@@ -446,10 +446,24 @@ const TrekDetailPage = () => {
     }
   };
 
-  const handleBookTop = () => {
-    const el = document.getElementById("booking-form");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  // const handleBookTop = () => {
+  //   const el = document.getElementById("booking-form");
+  //   if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  // };
+  // Replace with the business WhatsApp number in international format (no +, spaces, or dashes)
+const WHATSAPP_NUMBER = "+919395931311"; // example for India +91 -> 919876543210
+
+const handleWhatsAppBook = () => {
+  if (!trek) return;
+  const title = trek.title ?? "Trek";
+  const start = trek.start_date ? format(new Date(trek.start_date), "MMM dd") : "";
+  const price = typeof trek.price === "number" ? `₹${trek.price}` : `${trek.price}`;
+  const pageUrl = window.location.href;
+  const msg = `Hi! I'm interested in booking:\n• Trek: ${title}\n• Start: ${start}\n• Price: ${price} per person\n• Link: ${pageUrl}\nPlease share availability and next steps.`;
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+};
+
 
   if (isLoading) {
     return (
@@ -495,12 +509,13 @@ const TrekDetailPage = () => {
                 </div>
               </div>
             </div>
-            <Button
-              onClick={handleBookTop}
-              className="w-full sm:w-auto justify-center rounded-lg border border-white/10 shadow-sm text-[color:var(--sand,#f4efeb)] bg-[color:var(--forest,#283635)] hover:bg-[oklch(40%_0.06_180)] focus-visible:ring-2 focus-visible:ring-white/30 px-4 sm:px-6 py-2.5"
-            >
-              Book Now
-            </Button>
+           <Button
+  onClick={handleWhatsAppBook}
+  className="w-full sm:w-auto justify-center rounded-lg border border-white/10 shadow-sm text-white bg-green-800 hover:bg-green-700 focus-visible:ring-2 focus-visible:ring-white/30 px-4 sm:px-6 py-2.5"
+>
+  Book on WhatsApp
+</Button>
+
           </div>
         </div>
       </div>
@@ -654,6 +669,55 @@ const TrekDetailPage = () => {
               </Card>
             )}
 
+             {/* Itinerary */}
+{Array.isArray(trek.itinerary) && trek.itinerary.length > 0 && (
+  <Card className="shadow-sm border border-white/10 bg-white/5 backdrop-blur">
+    <CardHeader>
+      <CardTitle>Itinerary</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="space-y-5">
+        {trek.itinerary
+          .sort((a: any, b: any) => (Number(a.day ?? 0) - Number(b.day ?? 0)))
+          .map((d: any, idx: number) => {
+            const hasDate = !!d?.date;
+            let dateLabel: string | null = null;
+            if (hasDate) {
+              try {
+                dateLabel = format(new Date(d.date), "MMM dd");
+              } catch {
+                dateLabel = null;
+              }
+            }
+            return (
+              <div key={`${d.day}-${idx}`} className="flex gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 bg-[color:var(--forest,#283635)] text-[color:var(--sand,#f4efeb)] rounded-full flex items-center justify-center text-sm font-semibold">
+                    {d.day ?? idx + 1}
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-semibold text-foreground">{d.title}</h4>
+                    {dateLabel && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-foreground/80">
+                        {dateLabel}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-foreground/80 text-sm leading-relaxed">
+                    {d.description}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+      </div>
+    </CardContent>
+  </Card>
+)}
+
+
             {/* Included / Excluded */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="shadow-sm border border-white/10 bg-white/5 backdrop-blur">
@@ -694,34 +758,7 @@ const TrekDetailPage = () => {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Itinerary */}
-            {trek.itinerary && Object.keys(trek.itinerary).length > 0 && (
-              <Card className="shadow-sm border border-white/10 bg-white/5 backdrop-blur">
-                <CardHeader>
-                  <CardTitle>Sample Itinerary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {Object.entries(trek.itinerary).map(([day, activity], idx) => (
-                      <div key={day} className="flex gap-4">
-                        <div className="flex-shrink-0">
-                          <div className="w-10 h-10 bg-[color:var(--forest,#283635)] text-[color:var(--sand,#f4efeb)] rounded-full flex items-center justify-center text-sm font-semibold">
-                            {idx + 1}
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-foreground capitalize mb-1">
-                            {day.replace(/([A-Z])/g, " $1").trim()}
-                          </h4>
-                          <p className="text-foreground/80 text-sm">{activity as string}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+ 
           </div>
 
           {/* Sidebar Booking */}

@@ -101,7 +101,7 @@ const TrekCard = ({ trek }: TrekCardProps) => {
         {/* CTA Button */}
         <Link to={`/trek/${trek.id}`}>
          <Button
-  className="relative w-full text-[color:var(--sand,#f4efeb)] font-bold rounded-xl border border-green-900 shadow-[0_8px_24px_rgba(0,0,0,0.35)] bg-inherit hover:bg-[oklch(40%_0.06_180)] focus-visible:ring-2 focus-visible:ring-[color:var(--sand,#f4efeb)]/40 overflow-hidden transition text-sm sm:text-base"
+  className="relative w-full text-[color:var(--sand,#f4efeb)] font-bold rounded-xl border border-white shadow-[0_8px_24px_rgba(0,0,0,0.35)] bg-inherit hover:bg-[oklch(40%_0.06_180)] focus-visible:ring-2 focus-visible:ring-[color:var(--sand,#f4efeb)]/40 overflow-hidden transition text-sm sm:text-base"
 >
 
             <span className="relative z-10">View Details & Book</span>
